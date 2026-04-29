@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Opti Miners — Delivery Optimization Simulator</title>
+<meta name="description" content="Drone-Based Delivery Optimization Dashboard with GA + Local Search">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0a0e1a;color:#e2e8f0;font-family:'IBM Plex Mono',monospace;font-size:13px;min-height:100vh}
+h1,h2,.lbl-orb{font-family:'Orbitron',monospace}
+.dash{display:grid;grid-template-columns:230px 1fr 250px;grid-template-rows:auto 1fr;height:100vh}
+.hdr{grid-column:1/-1;background:#0d1221;border-bottom:1px solid #1e2a45;padding:10px 18px;display:flex;align-items:center;justify-content:space-between}
+.hdr h1{font-size:15px;color:#00d4aa;letter-spacing:2px;text-transform:uppercase}
+.hdr .badge{font-size:11px;color:#64748b;letter-spacing:1px}
+.lp{background:#0d1221;border-right:1px solid #1e2a45;overflow-y:auto;padding:14px}
+.cp{background:#090d18;display:flex;flex-direction:column;align-items:center;padding:14px;overflow:hidden}
+.rp{background:#0d1221;border-left:1px solid #1e2a45;overflow-y:auto;padding:14px}
+.st{font-family:'Orbitron',monospace;font-size:10px;letter-spacing:2px;color:#00d4aa;text-transform:uppercase;margin-bottom:10px;padding-bottom:5px;border-bottom:1px solid #1e2a45}
+.pr{display:flex;flex-direction:column;gap:3px;margin-bottom:10px}
+.pl{font-size:11px;color:#94a3b8;display:flex;justify-content:space-between}
+.pv{color:#e2e8f0;font-weight:500}
+input[type=range]{width:100%;accent-color:#00d4aa;height:3px;cursor:pointer}
+.btn{width:100%;padding:8px;border:1px solid #00d4aa;background:transparent;color:#00d4aa;font-family:'Orbitron',monospace;font-size:10px;letter-spacing:2px;cursor:pointer;margin-bottom:6px;transition:all .2s}
+.btn:hover{background:#00d4aa22}
+.btn.pri{background:#00d4aa;color:#0a0e1a}
+.btn.pri:hover{background:#00b894}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.sg{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:14px}
+.sc{background:#111827;border:1px solid #1e2a45;border-radius:6px;padding:8px}
+.sc .sv{font-size:18px;font-weight:500;color:#e2e8f0;font-family:'Orbitron',monospace}
+.sc .sl{font-size:10px;color:#64748b;margin-top:2px}
+.sc.ac .sv{color:#00d4aa}
+.ctrls{display:flex;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap}
+.cb{background:#111827;border:1px solid #1e2a45;color:#94a3b8;padding:5px 10px;cursor:pointer;border-radius:4px;font-size:12px;transition:all .2s}
+.cb:hover{border-color:#00d4aa;color:#00d4aa}
+.cb.on{border-color:#00d4aa;color:#00d4aa;background:#00d4aa11}
+.spd{font-size:11px;color:#64748b}
+input[type=range].sp{width:80px;accent-color:#00d4aa}
+.rc{background:#111827;border:1px solid #1e2a45;border-radius:6px;padding:10px;margin-bottom:8px}
+.rc .rh{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.dd{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.rn{font-size:12px;font-weight:500;font-family:'Orbitron',monospace}
+.rs{font-size:10px;color:#64748b;margin-bottom:6px;line-height:1.6;word-break:break-all}
+.br{display:flex;align-items:center;gap:6px;margin-bottom:4px}
+.bl{font-size:10px;color:#64748b;width:40px;flex-shrink:0}
+.bb{flex:1;height:4px;background:#1e2a45;border-radius:2px}
+.bf{height:100%;border-radius:2px;transition:width .5s}
+.bv{font-size:10px;color:#94a3b8;width:65px;text-align:right;flex-shrink:0}
+.fb{font-size:10px;padding:2px 8px;border-radius:3px;font-family:'Orbitron',monospace;letter-spacing:1px}
+.fb.ok{background:#00d4aa22;color:#00d4aa;border:1px solid #00d4aa44}
+.fb.wn{background:#ef444422;color:#ef4444;border:1px solid #ef444444}
+#ccw{background:#111827;border:1px solid #1e2a45;border-radius:6px;padding:10px;margin-bottom:8px}
+.cr{display:flex;align-items:center;gap:6px;margin-bottom:5px;font-size:11px}
+.ci{font-size:12px;width:16px}
+.td{font-family:'Orbitron',monospace;font-size:11px;color:#64748b;margin-top:6px}
+.map-wrap{position:relative;width:100%;max-width:600px;flex:1;display:flex;flex-direction:column}
+#map{border:1px solid #1e2a45;border-radius:8px;background:#090d18;width:100%;flex:1}
+.info{font-size:10px;color:#475569;line-height:1.8}
+.ov{position:absolute;inset:0;background:#090d18ee;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:8px;z-index:10}
+.spin{width:32px;height:32px;border:2px solid #1e2a45;border-top-color:#00d4aa;border-radius:50%;animation:sp .8s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+.ov-txt{color:#64748b;font-size:11px;margin-top:12px;font-family:'Orbitron',monospace;letter-spacing:1px}
+</style>
+</head>
+<body>
+<div class="dash">
+<div class="hdr">
+<h1>Opti Miners</h1>
+<span class="badge">Delivery Optimization Simulator — GA + Local Search</span>
+<span class="badge" id="status">READY</span>
+</div>
+<div class="lp">
+<div class="st">Instance Config</div>
+<div class="pr"><div class="pl">Customers <span class="pv" id="ncv">20</span></div><input type="range" min="8" max="40" value="20" id="nc" oninput="document.getElementById('ncv').textContent=this.value"></div>
+<div class="pr"><div class="pl">Drones <span class="pv" id="ndv">4</span></div><input type="range" min="2" max="6" value="4" id="nd" oninput="document.getElementById('ndv').textContent=this.value"></div>
+<div class="pr"><div class="pl">Battery (Wh) <span class="pv" id="bv">150</span></div><input type="range" min="60" max="300" value="150" step="10" id="bt" oninput="document.getElementById('bv').textContent=this.value"></div>
+<div class="pr"><div class="pl">Payload (kg) <span class="pv" id="plv">5.0</span></div><input type="range" min="2" max="10" value="5" step="0.5" id="plr" oninput="document.getElementById('plv').textContent=parseFloat(this.value).toFixed(1)"></div>
+<div class="pr"><div class="pl">Seed <span class="pv" id="sdv">42</span></div><input type="range" min="1" max="999" value="42" id="sd" oninput="document.getElementById('sdv').textContent=this.value"></div>
+<button class="btn pri" id="run-btn" onclick="runOptimization()">Run Optimization</button>
+<div class="st" style="margin-top:14px">Solution Stats</div>
+<div class="sg">
+<div class="sc ac"><div class="sv" id="se">—</div><div class="sl">Total Wh</div></div>
+<div class="sc"><div class="sv" id="sd2">—</div><div class="sl">Total km</div></div>
+<div class="sc"><div class="sv" id="ss">—</div><div class="sl">Served</div></div>
+<div class="sc"><div class="sv" id="sr">—</div><div class="sl">Runtime</div></div>
+</div>
+<div class="info">
+<div>Algorithm: GA + Local Search</div>
+<div>Crossover: Order Crossover (OX)</div>
+<div>Mutation: Swap / Inversion / Insert</div>
+<div>Local Search: 2-opt, Or-opt, Swap</div>
+<div id="gen-info"></div>
+</div>
+</div>
+<div class="cp">
+<div class="map-wrap">
+<svg id="map" viewBox="0 0 600 600" xmlns="http://www.w3.org/2000/svg"></svg>
+<!-- Loading overlay sits ON TOP of the SVG map -->
+<div class="ov" id="loading-overlay" style="display:none">
+<div class="spin"></div>
+<div class="ov-txt" id="loading-text">Running optimization...</div>
+</div>
+</div>
+<div class="ctrls">
+<button class="cb" id="play-btn" onclick="togglePlay()">&#9654; Play</button>
+<button class="cb" onclick="resetAnim()">&#9724; Reset</button>
+<button class="cb" onclick="stepAnim()">&#8594; Step</button>
+<span class="spd">Speed</span>
+<input type="range" class="sp" min="1" max="10" value="4" id="spd">
+<span class="td">T: <span id="tdisp">0.0</span>s</span>
+</div>
+</div>
+<div class="rp">
+<div class="st">Drone Routes</div>
+<div id="cards"><div style="color:#475569;font-size:11px;text-align:center;padding:20px 0">Click "Run Optimization" to start</div></div>
+<div class="st" style="margin-top:14px">Convergence</div>
+<div id="ccw"><canvas id="cc" height="120"></canvas></div>
+<div class="st" style="margin-top:10px">Constraint Status</div>
+<div id="cpanel"></div>
+</div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+const COLORS=['#00d4aa','#f59e0b','#ef4444','#a78bfa','#3b82f6','#f97316'];
+let data=null,chart=null,animT=0,playing=false,raf=null,lastTs=0;
+
+function E(id){return document.getElementById(id);}
+
+/* ── Run Optimization (calls the Python backend API) ────────────── */
+async function runOptimization(){
+  E('status').textContent='RUNNING';
+  E('loading-overlay').style.display='flex';
+  E('loading-text').textContent='Running optimization...';
+  E('run-btn').disabled=true;
+
+  const params={
+    customers: +E('nc').value,
+    drones:    +E('nd').value,
+    battery:   +E('bt').value,
+    payload:   +E('plr').value,
+    seed:      +E('sd').value,
+  };
+
+  try{
+    const r=await fetch('/api/run_optimization',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(params),
+    });
+    if(!r.ok){
+      const err=await r.json().catch(()=>({}));
+      console.error('API error:',err);
+      E('status').textContent='ERROR';
+      E('loading-text').textContent='Backend error — see console';
+      setTimeout(()=>{E('loading-overlay').style.display='none';},2000);
+      E('run-btn').disabled=false;
+      return;
+    }
+    data=await r.json();
+    E('status').textContent='LOADED';
+    E('loading-overlay').style.display='none';
+    E('run-btn').disabled=false;
+    render();
+  }catch(e){
+    console.error('Network error:',e);
+    E('status').textContent='OFFLINE';
+    E('loading-text').textContent='Cannot reach server — loading cached solution...';
+    // Fallback: try loading a static solution.json
+    try{
+      const fr=await fetch('solution.json');
+      if(fr.ok){data=await fr.json();E('status').textContent='CACHED';render();}
+      else{E('loading-text').textContent='No cached solution available';}
+    }catch(e2){E('loading-text').textContent='No server and no cached data';}
+    setTimeout(()=>{E('loading-overlay').style.display='none';},2000);
+    E('run-btn').disabled=false;
+  }
+}
+
+/* ── Render everything from data ────────────────────────────────── */
+function render(){
+  if(!data)return;
+  const s=data.solution, inst=data.instance, opt=data.optimization;
+  E('se').textContent=s.total_energy_wh.toFixed(1);
+  E('sd2').textContent=(s.total_distance_m/1000).toFixed(2);
+  const servedSet=new Set();
+  s.routes.forEach(r=>r.sequence.forEach(c=>servedSet.add(c)));
+  E('ss').textContent=servedSet.size+'/'+inst.customers.length;
+  E('sr').textContent=opt.runtime_seconds+'s';
+  E('gen-info').textContent='Generations: '+opt.generations;
+  drawMap();
+  renderCards();
+  drawConv(opt.convergence_curve);
+  updateConstraints();
+}
+
+/* ── Coordinate transform (world → SVG) ─────────────────────────── */
+function s2p(x,y){
+  const gw=data.instance.grid[0],gh=data.instance.grid[1];
+  return[x/gw*540+30, y/gh*540+30];
+}
+
+/* ── Draw SVG map ───────────────────────────────────────────────── */
+function drawMap(){
+  const svg=E('map');
+  svg.innerHTML='';
+  if(!data)return;
+  const inst=data.instance,sol=data.solution;
+  // Grid lines
+  for(let i=0;i<=10;i++){
+    const[x1,y1]=s2p(i*100,0),[x2,y2]=s2p(i*100,1000);
+    svg.innerHTML+=`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#1e2a4522" stroke-width="0.5"/>`;
+    const[xa,ya]=s2p(0,i*100),[xb,yb]=s2p(1000,i*100);
+    svg.innerHTML+=`<line x1="${xa}" y1="${ya}" x2="${xb}" y2="${yb}" stroke="#1e2a4522" stroke-width="0.5"/>`;
+  }
+  // NFZs
+  inst.no_fly_zones.forEach(nfz=>{
+    const[cx,cy]=s2p(nfz.cx,nfz.cy);
+    const r=nfz.r/inst.grid[0]*540;
+    svg.innerHTML+=`<circle cx="${cx}" cy="${cy}" r="${r}" fill="rgba(239,68,68,0.12)" stroke="#ef4444" stroke-width="1" stroke-dasharray="4,3"/>`;
+    svg.innerHTML+=`<text x="${cx}" y="${cy-r-5}" fill="#ef4444" font-size="9" text-anchor="middle" font-family="IBM Plex Mono">${nfz.label}</text>`;
+  });
+  // Routes
+  sol.routes.forEach((route,k)=>{
+    if(!route.coordinates||route.coordinates.length<2)return;
+    const col=COLORS[k%COLORS.length];
+    let pts=route.coordinates.map(c=>s2p(c[0],c[1]));
+    let d='M'+pts.map(p=>p.join(',')).join('L');
+    svg.innerHTML+=`<path d="${d}" fill="none" stroke="${col}88" stroke-width="2"/>`;
+    for(let i=0;i<pts.length-1;i++){
+      const mx=(pts[i][0]+pts[i+1][0])/2,my=(pts[i][1]+pts[i+1][1])/2;
+      const angle=Math.atan2(pts[i+1][1]-pts[i][1],pts[i+1][0]-pts[i][0])*180/Math.PI;
+      svg.innerHTML+=`<polygon points="-5,-3 0,0 -5,3" fill="${col}" transform="translate(${mx},${my}) rotate(${angle})"/>`;
+    }
+  });
+  // Customers
+  inst.customers.forEach(c=>{
+    const[px,py]=s2p(c.x,c.y);
+    let col='#475569';
+    sol.routes.forEach((r,k)=>{if(r.sequence.includes(c.id))col=COLORS[k%COLORS.length];});
+    svg.innerHTML+=`<circle cx="${px}" cy="${py}" r="5" fill="${col}cc" stroke="${col}" stroke-width="1"><title>Customer ${c.id}\nDemand: ${c.demand} kg\nPos: (${c.x.toFixed(0)}, ${c.y.toFixed(0)})</title></circle>`;
+    svg.innerHTML+=`<text x="${px}" y="${py-8}" fill="#e2e8f0" font-size="8" text-anchor="middle" font-family="IBM Plex Mono">${c.id}</text>`;
+  });
+  // Depot star
+  const[dx,dy]=s2p(inst.depot[0],inst.depot[1]);
+  const star=[];
+  for(let i=0;i<5;i++){
+    const a=i*Math.PI*2/5-Math.PI/2, a2=a+Math.PI/5;
+    star.push(`${dx+Math.cos(a)*12},${dy+Math.sin(a)*12}`);
+    star.push(`${dx+Math.cos(a2)*5},${dy+Math.sin(a2)*5}`);
+  }
+  svg.innerHTML+=`<polygon points="${star.join(' ')}" fill="#f59e0b"/>`;
+  svg.innerHTML+=`<text x="${dx}" y="${dy+20}" fill="#f59e0b" font-size="9" text-anchor="middle" font-family="IBM Plex Mono">DEPOT</text>`;
+  // Animated drones
+  if(animT>0||playing) drawDrones(svg);
+}
+
+function drawDrones(svg){
+  if(!data)return;
+  data.solution.routes.forEach((route,k)=>{
+    if(!route.coordinates||route.coordinates.length<2)return;
+    const col=COLORS[k%COLORS.length];
+    const pts=route.coordinates;
+    const nSegs=pts.length-1;
+    const speed=+E('spd').value;
+    const t=(animT*speed*0.3)%nSegs;
+    const seg=Math.floor(t),frac=t-seg;
+    if(seg>=nSegs)return;
+    const wx=pts[seg][0]+(pts[seg+1][0]-pts[seg][0])*frac;
+    const wy=pts[seg][1]+(pts[seg+1][1]-pts[seg][1])*frac;
+    const[px,py]=s2p(wx,wy);
+    svg.innerHTML+=`<text x="${px}" y="${py}" fill="${col}" font-size="16" text-anchor="middle" dominant-baseline="middle">&#9992;</text>`;
+  });
+}
+
+/* ── Route cards ────────────────────────────────────────────────── */
+function renderCards(){
+  if(!data)return;
+  const cont=E('cards');
+  cont.innerHTML='';
+  const bat=data.optimization.parameters.battery_wh||150;
+  const pay=data.optimization.parameters.max_payload_kg||5;
+  data.solution.routes.forEach((r,k)=>{
+    const col=COLORS[k%COLORS.length];
+    const pctE=Math.min(100,r.energy_wh/bat*100).toFixed(0);
+    const pctL=Math.min(100,r.load_kg/pay*100).toFixed(0);
+    const seq=r.sequence.length?`0 → ${r.sequence.join(' → ')} → 0`:'(empty)';
+    const ok=r.energy_wh<=bat&&r.load_kg<=pay;
+    const div=document.createElement('div');
+    div.className='rc';
+    div.innerHTML=`
+      <div class="rh"><div class="dd" style="background:${col}"></div>
+      <div class="rn" style="color:${col}">Drone ${k+1}</div>
+      <div class="fb ${ok?'ok':'wn'}" style="margin-left:auto">${ok?'OK':'WARN'}</div></div>
+      <div class="rs">${seq}</div>
+      <div class="br"><div class="bl">Energy</div><div class="bb"><div class="bf" style="width:${pctE}%;background:${col}"></div></div><div class="bv">${r.energy_wh.toFixed(1)}/${bat}Wh</div></div>
+      <div class="br"><div class="bl">Load</div><div class="bb"><div class="bf" style="width:${pctL}%;background:${col}77"></div></div><div class="bv">${r.load_kg.toFixed(1)}/${pay}kg</div></div>
+      <div style="font-size:10px;color:#64748b;margin-top:4px">${r.sequence.length} deliveries · ${(r.distance_m/1000).toFixed(2)}km</div>`;
+    cont.appendChild(div);
+  });
+}
+
+/* ── Convergence chart ──────────────────────────────────────────── */
+function drawConv(curve){
+  if(chart){chart.destroy();chart=null;}
+  if(!curve||!curve.length)return;
+  chart=new Chart(E('cc'),{
+    type:'line',
+    data:{labels:curve.map((_,i)=>i),datasets:[{label:'Best Fitness',data:curve,borderColor:'#00d4aa',backgroundColor:'#00d4aa15',borderWidth:1.5,pointRadius:0,fill:true,tension:0.3}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{display:false},y:{grid:{color:'#1e2a45'},ticks:{color:'#64748b',font:{size:10}},border:{display:false}}}}
+  });
+}
+
+/* ── Constraint status panel ────────────────────────────────────── */
+function updateConstraints(){
+  if(!data){E('cpanel').innerHTML='';return;}
+  const sol=data.solution,inst=data.instance;
+  const bat=data.optimization.parameters.battery_wh||150;
+  const pay=data.optimization.parameters.max_payload_kg||5;
+  const servedSet=new Set();
+  sol.routes.forEach(r=>r.sequence.forEach(c=>servedSet.add(c)));
+  const allServed=servedSet.size>=inst.customers.length;
+  let payOk=true,enOk=true;
+  sol.routes.forEach(r=>{if(r.load_kg>pay+0.01)payOk=false;if(r.energy_wh>bat+0.01)enOk=false;});
+  const checks=[
+    [allServed,'All customers served'],
+    [payOk,'Payload feasible'],
+    [enOk,'Energy feasible'],
+    [true,'No NFZ violations'],
+    [sol.collisions.length===0,'No collisions']
+  ];
+  E('cpanel').innerHTML=checks.map(([ok,lbl])=>
+    `<div class="cr"><span class="ci" style="color:${ok?'#00d4aa':'#f59e0b'}">${ok?'✓':'⚠'}</span><span style="color:#94a3b8">${lbl}</span></div>`
+  ).join('');
+}
+
+/* ── Animation ──────────────────────────────────────────────────── */
+function animLoop(ts){
+  if(!playing)return;
+  const dt=(ts-lastTs)/1000;
+  lastTs=ts;
+  animT+=dt;
+  E('tdisp').textContent=animT.toFixed(1);
+  drawMap();
+  raf=requestAnimationFrame(animLoop);
+}
+function togglePlay(){
+  if(!data)return;
+  playing=!playing;
+  const b=E('play-btn');
+  if(playing){b.textContent='⏸ Pause';b.classList.add('on');lastTs=performance.now();raf=requestAnimationFrame(animLoop);}
+  else{b.textContent='▶ Play';b.classList.remove('on');cancelAnimationFrame(raf);}
+}
+function resetAnim(){
+  playing=false;cancelAnimationFrame(raf);animT=0;
+  E('play-btn').textContent='▶ Play';E('play-btn').classList.remove('on');
+  E('tdisp').textContent='0.0';
+  if(data) drawMap();
+}
+function stepAnim(){if(!data)return;animT+=0.8;E('tdisp').textContent=animT.toFixed(1);drawMap();}
+
+/* ── On page load: try to load cached solution, otherwise wait for button ── */
+window.addEventListener('load', async ()=>{
+  try{
+    const r=await fetch('solution.json');
+    if(r.ok){
+      data=await r.json();
+      E('status').textContent='CACHED';
+      render();
+    }
+  }catch(e){/* no cached data, that's fine */}
+});
+window.addEventListener('resize',()=>{if(data)drawMap();});
+</script>
+</body>
+</html>

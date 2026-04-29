@@ -1,0 +1,41 @@
+{
+  "source_file": "busy_day.in",
+  "grid": {
+    "rows": 400,
+    "cols": 600
+  },
+  "depot": {
+    "x": 113,
+    "y": 179
+  },
+  "drones": {
+    "count": 30,
+    "max_payload": 200,
+    "battery_capacity": 1178.78,
+    "battery_unit": "energy units (see energy_model)"
+  },
+  "energy_model": {
+    "mode": "distance_x_weight",
+    "formula": "energy = distance \u00d7 (demand_weight / max_load)",
+    "note": "distance = Euclidean; weight_factor = demand_weight / max_load"
+  },
+  "simulation": {
+    "deadline_turns": 112993
+  },
+  "dataset_stats": {
+    "total_orders_in_source": 1250,
+    "feasible_customers": 222,
+    "skipped_overweight_orders": 1028,
+    "no_fly_zones": 5
+  },
+  "assumptions": [
+    "Each drone starts and ends its route at the depot (warehouse 0).",
+    "Each customer must be served exactly once.",
+    "A drone cannot exceed its max_payload on any single trip.",
+    "A drone cannot exceed its battery_capacity on a single route.",
+    "No-fly zones are rectangular areas; paths crossing them are forbidden.",
+    "Energy on a leg = Euclidean_distance \u00d7 (demand_weight / max_load) when mode is distance_x_weight, else pure Euclidean distance.",
+    "Battery capacity derived as 3.5\u00d7 the average depot round-trip distance across all customers.",
+    "No-fly zones are randomly generated (seed=42), sized ~4% of each grid dimension, and guaranteed not to cover the depot or any customer location."
+  ]
+}
