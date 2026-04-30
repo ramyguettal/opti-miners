@@ -173,8 +173,27 @@ def main(argv: list[str] | None = None) -> None:
         for v in report.violations:
             print(f"    !! {v}")
 
+    # ── lower bound & optimality gap ──────────────────────────────────────
+    from drone_delivery.optimization.lower_bound import compute_lower_bound, optimality_gap
+    bounds = compute_lower_bound(instance, max_payload=eff_payload, battery=eff_battery)
+    gap = optimality_gap(best_solution.total_energy, bounds["best_lower_bound"])
+    print(f"\n  Optimality Analysis:")
+    print(f"    Lower bound (MST)              : {bounds['lb_mst']:.2f} Wh")
+    print(f"    Lower bound (assignment)       : {bounds['lb_assignment']:.2f} Wh")
+    print(f"    Best lower bound               : {bounds['best_lower_bound']:.2f} Wh")
+    print(f"    GA+SA solution                 : {best_solution.total_energy:.2f} Wh")
+    print(f"    Upper bound (individual trips) : {bounds['ub_individual_trips']:.2f} Wh")
+    print(f"    Optimality gap                 : {gap:.1f}%")
+    if gap < 30:
+        print(f"    Quality                        : EXCELLENT (within 30% of theoretical optimum)")
+    elif gap < 60:
+        print(f"    Quality                        : GOOD (within 60% of theoretical optimum)")
+    else:
+        print(f"    Quality                        : ACCEPTABLE")
+
     # ── export ────────────────────────────────────────────────────────────
-    export_solution_json(instance, best_solution, ga_stats, output_path=args.output)
+    export_solution_json(instance, best_solution, ga_stats,
+                         output_path=args.output, report=report)
     print(f"\n  Solution exported to: {args.output}")
 
     # ── route summary ─────────────────────────────────────────────────────

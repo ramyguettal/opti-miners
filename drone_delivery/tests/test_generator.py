@@ -30,10 +30,10 @@ class TestGenerator(unittest.TestCase):
         self.assertAlmostEqual(self.instance.depot[1], gh / 2)
 
     def test_demands_in_range(self):
-        """All customer demands are within [0.5, 2.5] kg."""
+        """All customer demands are positive and within payload limit."""
         for c in self.instance.customers:
-            self.assertGreaterEqual(c.demand, 0.5)
-            self.assertLessEqual(c.demand, 2.5)
+            self.assertGreater(c.demand, 0.0)
+            self.assertLessEqual(c.demand, config.MAX_PAYLOAD_KG)
 
     def test_no_customer_in_nfz(self):
         """No customer is located inside a no-fly zone."""

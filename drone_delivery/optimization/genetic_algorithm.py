@@ -302,11 +302,12 @@ def run_ga(
             new_fitness.append(fitness[idx])
             new_solutions.append(solutions[idx])
 
-        # Apply local search to elite individuals (Memetic part)
-        for i in range(min(elite_size, len(new_solutions))):
+        # Apply SA to top 3 elite individuals (Memetic part)
+        for i in range(min(3, len(new_solutions))):
             sol = new_solutions[i]
-            sol = local_search(sol, instance, max_iter=5,
-                               max_payload=max_payload, battery=battery)
+            sol = local_search(sol, instance, max_iter=10,
+                               max_payload=max_payload, battery=battery,
+                               seed=seed + gen * 100 + i)
             fit = sol.evaluate(instance, max_payload, battery)
             new_fitness[i] = fit
             new_solutions[i] = sol
@@ -380,8 +381,9 @@ def run_ga(
             break
 
     # ── final local search on best ───────────────────────────────────────
-    best_solution = local_search(best_solution, instance, max_iter=50,
-                                  max_payload=max_payload, battery=battery)
+    best_solution = local_search(best_solution, instance, max_iter=100,
+                                  max_payload=max_payload, battery=battery,
+                                  seed=seed + 999999)
     best_fitness = best_solution.evaluate(instance, max_payload, battery)
     convergence.append(best_fitness)
 

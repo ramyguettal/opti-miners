@@ -22,6 +22,7 @@ def export_solution_json(
     solution: "Solution",
     ga_stats: "GAStats",
     output_path: str = "results/solution.json",
+    report=None,
 ) -> dict:
     """Export the optimisation results to a JSON file.
 
@@ -32,6 +33,7 @@ def export_solution_json(
         solution:    The best solution found.
         ga_stats:    GA runtime statistics.
         output_path: Path to write the JSON file.
+        report:      Optional ConstraintReport from checker.
 
     Returns:
         The dict that was serialised to JSON.
@@ -70,7 +72,7 @@ def export_solution_json(
 
         routes_json.append({
             "drone_id": route.drone_id,
-            "sequence": route.sequence,
+            "sequence": [instance.customers[c_idx - 1].id for c_idx in route.sequence],
             "coordinates": [[round(x, 2), round(y, 2)] for x, y in coords],
             "energy_wh": round(route.total_energy, 4),
             "distance_m": round(route.total_distance, 4),
@@ -80,6 +82,27 @@ def export_solution_json(
 
     # ── collision placeholder ────────────────────────────────────────────
     collisions: list[dict] = []  # §5 — optional advanced feature
+
+    # ── served count ─────────────────────────────────────────────────────
+    served_ids = set()
+    for r in solution.routes:
+        served_ids.update(r.sequence)
+    served_count = len(served_ids)
+
+    # ── constraints ──────────────────────────────────────────────────────
+    constraints_json = None
+    if report is not None:
+        constraints_json = {
+            "feasible": report.feasible,
+            "checks": [
+                {"name": "All customers served", "passed": report.all_served},
+                {"name": "Payload feasible",     "passed": report.payload_feasible},
+                {"name": "Energy feasible",      "passed": report.energy_feasible},
+                {"name": "No NFZ violations",    "passed": report.nfz_feasible},
+                {"name": "No collisions",        "passed": report.no_collisions},
+            ],
+            "violations": report.violations,
+        }
 
     # ── assemble output ──────────────────────────────────────────────────
     output = {
@@ -94,11 +117,15 @@ def export_solution_json(
             "total_energy_wh": round(solution.total_energy, 4),
             "total_distance_m": round(solution.total_distance, 4),
             "feasible": solution.feasible,
+            "served_count": served_count,
             "routes": routes_json,
             "collisions": collisions,
         },
         "optimization": {
-            "algorithm": "Genetic Algorithm + Local Search (Memetic)",
+            "algorithm": "SA + Local Search",
+            "crossover": "Order Crossover (OX)",
+            "mutation": "Swap / Inversion / Insert",
+            "local_search": "2-opt, Or-opt, Swap",
             "generations": ga_stats.generations,
             "population_size": ga_stats.population_size,
             "convergence_curve": [round(v, 4) for v in ga_stats.convergence_curve],
@@ -107,9 +134,13 @@ def export_solution_json(
         },
     }
 
+    if constraints_json is not None:
+        output["constraints"] = constraints_json
+
     # Write to file
     os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
     with open(output_path, "w") as f:
         json.dump(output, f, indent=2)
 
     return output
+

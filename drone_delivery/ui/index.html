@@ -261,7 +261,7 @@ function drawMap(){
   inst.customers.forEach(c=>{
     const[px,py]=s2p(c.x,c.y);
     let col='#475569';
-    sol.routes.forEach((r,k)=>{if(r.sequence.includes(c.id))col=COLORS[k%COLORS.length];});
+    sol.routes.forEach((r,k)=>{if(r.sequence.some(sid => String(sid) === String(c.id)))col=COLORS[k%COLORS.length];});
     svg.innerHTML+=`<circle cx="${px}" cy="${py}" r="5" fill="${col}cc" stroke="${col}" stroke-width="1"><title>Customer ${c.id}\nDemand: ${c.demand} kg\nPos: (${c.x.toFixed(0)}, ${c.y.toFixed(0)})</title></circle>`;
     svg.innerHTML+=`<text x="${px}" y="${py-8}" fill="#e2e8f0" font-size="8" text-anchor="middle" font-family="IBM Plex Mono">${c.id}</text>`;
   });
