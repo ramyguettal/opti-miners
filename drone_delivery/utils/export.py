@@ -87,7 +87,7 @@ def export_solution_json(
             "depot": [round(instance.depot[0], 2), round(instance.depot[1], 2)],
             "customers": customers_json,
             "no_fly_zones": nfz_json,
-            "grid": list(config.GRID_SIZE),
+            "grid": list(getattr(instance, '_grid', config.GRID_SIZE)),
             "n_drones": instance.n_drones,
         },
         "solution": {

@@ -3,86 +3,166 @@ main.py
 =======
 Entry point for the Drone-Based Delivery Optimization System.
 
-Generates (or loads) an instance, runs the Genetic Algorithm, validates
-the solution, exports JSON, and prints a summary.
+Two modes
+---------
+1. **Real data mode** (default):
+        python -m drone_delivery.main --data-dir "data pre processing"
+   Loads customers, NFZs, and baseline drone specs from the pre-processed
+   CSV/JSON files.  UI sliders for drones / battery / payload override the
+   dataset defaults so users can experiment with different fleet configs.
 
-Usage:
-    python -m drone_delivery.main [--customers N] [--drones N] [--seed N]
-                                   [--battery F] [--payload F]
-                                   [--generations N] [--pop-size N]
-                                   [--output PATH]
+2. **Synthetic mode** (for unit-testing / demo):
+        python -m drone_delivery.main --random --customers 20 --drones 4
+   Generates a random instance.
+
+Common options
+--------------
+    --drones N        Number of drones (overrides dataset default)
+    --battery F       Battery capacity in Wh (overrides dataset default)
+    --payload F       Max payload in kg (overrides dataset default)
+    --generations N   GA generations
+    --pop-size N      GA population size
+    --output PATH     Where to write solution.json
 """
 from __future__ import annotations
 
 import argparse
 import sys
+from pathlib import Path
 
 from drone_delivery import config
 from drone_delivery.constraints.checker import check_solution
-from drone_delivery.data.generator import generate_instance
 from drone_delivery.optimization.genetic_algorithm import run_ga
 from drone_delivery.utils.export import export_solution_json
+
+# Default real-data directory (relative to project root)
+DEFAULT_DATA_DIR = "data pre processing"
 
 
 def main(argv: list[str] | None = None) -> None:
     """Parse CLI arguments, run optimisation, and export results."""
     parser = argparse.ArgumentParser(
-        description="Drone-Based Delivery Optimization (EC-CVRP-NFZ)"
+        description="Opti Miners — Drone-Based Delivery Optimization (EC-CVRP-NFZ)"
     )
+
+    # ── data source ──────────────────────────────────────────────────────
+    src = parser.add_mutually_exclusive_group()
+    src.add_argument(
+        "--data-dir", type=str, default=DEFAULT_DATA_DIR,
+        help="Directory with customers.csv / no_fly_zones.csv / parameters.json "
+             "(default: '%(default)s')"
+    )
+    src.add_argument(
+        "--random", action="store_true",
+        help="Generate a random synthetic instance instead of loading real data"
+    )
+
+    # ── fleet overrides (work in both modes) ─────────────────────────────
+    parser.add_argument("--drones",    type=int,   default=None,
+                        help="Override number of drones")
+    parser.add_argument("--battery",   type=float, default=None,
+                        help="Override battery capacity (energy units)")
+    parser.add_argument("--payload",   type=float, default=None,
+                        help="Override max payload per drone")
+    parser.add_argument("--max-customers", type=int, default=None,
+                        help="Limit to this many customers from the dataset")
+
+    # ── synthetic-mode extras ─────────────────────────────────────────────
     parser.add_argument("--customers", type=int, default=config.NUM_CUSTOMERS,
-                        help="Number of customers (default: %(default)s)")
-    parser.add_argument("--drones", type=int, default=config.DRONE_COUNT,
-                        help="Number of drones (default: %(default)s)")
-    parser.add_argument("--seed", type=int, default=config.RANDOM_SEED,
-                        help="Random seed (default: %(default)s)")
-    parser.add_argument("--battery", type=float, default=config.BATTERY_WH,
-                        help="Battery capacity in Wh (default: %(default)s)")
-    parser.add_argument("--payload", type=float, default=config.MAX_PAYLOAD_KG,
-                        help="Max payload in kg (default: %(default)s)")
+                        help="[random mode] Number of synthetic customers")
+    parser.add_argument("--seed",      type=int, default=config.RANDOM_SEED,
+                        help="[random mode] Random seed")
+
+    # ── GA hyper-params ───────────────────────────────────────────────────
     parser.add_argument("--generations", type=int, default=config.GA_GENERATIONS,
                         help="GA generations (default: %(default)s)")
-    parser.add_argument("--pop-size", type=int, default=config.GA_POP_SIZE,
+    parser.add_argument("--pop-size",    type=int, default=config.GA_POP_SIZE,
                         help="GA population size (default: %(default)s)")
-    parser.add_argument("--output", type=str, default="results/solution.json",
+    parser.add_argument("--output",      type=str, default="results/solution.json",
                         help="Output JSON path (default: %(default)s)")
+
     args = parser.parse_args(argv)
 
-    # ── Step 1: generate instance ────────────────────────────────────────
-    print(f"\n{'='*60}")
-    print("  DRONE-BASED DELIVERY OPTIMIZATION")
-    print(f"{'='*60}")
-    print(f"  Customers : {args.customers}")
-    print(f"  Drones    : {args.drones}")
-    print(f"  Battery   : {args.battery} Wh")
-    print(f"  Payload   : {args.payload} kg")
-    print(f"  Seed      : {args.seed}")
-    print(f"{'='*60}\n")
+    # Resolve effective fleet params
+    eff_drones  = args.drones   or config.DRONE_COUNT
+    eff_battery = args.battery  or config.BATTERY_WH
+    eff_payload = args.payload  or config.MAX_PAYLOAD_KG
 
-    instance = generate_instance(
-        n_customers=args.customers,
-        n_drones=args.drones,
-        seed=args.seed,
-        battery_wh=args.battery,
-        max_payload_kg=args.payload,
-    )
-    print(f"Instance generated: {instance.n_customers} customers, "
+    # ── header ───────────────────────────────────────────────────────────
+    print(f"\n{'='*60}")
+    print("  OPTI MINERS — DRONE DELIVERY OPTIMIZATION")
+    print(f"{'='*60}")
+
+    # ── build instance ────────────────────────────────────────────────────
+    if args.random:
+        # Synthetic mode — kept for testing / CI
+        from drone_delivery.data.generator import generate_instance
+        print(f"  Mode     : Synthetic (random)")
+        print(f"  Customers: {args.customers}  Drones: {eff_drones}")
+        print(f"  Battery  : {eff_battery} Wh  Payload: {eff_payload} kg")
+        print(f"  Seed     : {args.seed}")
+        print(f"{'='*60}\n")
+        instance = generate_instance(
+            n_customers=args.customers,
+            n_drones=eff_drones,
+            seed=args.seed,
+            battery_wh=eff_battery,
+            max_payload_kg=eff_payload,
+        )
+    else:
+        # Real data mode
+        from drone_delivery.data.loader import load_instance
+        data_dir = Path(args.data_dir)
+        if not data_dir.exists():
+            print(f"[ERROR] Data directory not found: {data_dir.resolve()}")
+            sys.exit(1)
+
+        print(f"  Mode     : Real dataset ({data_dir})")
+        print(f"  Drones   : {args.drones or 'from dataset'}")
+        print(f"  Battery  : {args.battery or 'from dataset'}")
+        print(f"  Payload  : {args.payload or 'from dataset'}")
+        if args.max_customers:
+            print(f"  Customers: up to {args.max_customers}")
+        print(f"{'='*60}\n")
+
+        instance = load_instance(
+            data_dir,
+            n_drones=args.drones,
+            battery_override=args.battery,
+            payload_override=args.payload,
+            max_customers=args.max_customers,
+        )
+        # Resolve effective values from instance (dataset may have set them)
+        eff_battery = getattr(instance, '_battery', eff_battery)
+        eff_payload = getattr(instance, '_payload', eff_payload)
+
+    print(f"Instance loaded: {instance.n_customers} customers, "
           f"{len(instance.no_fly_zones)} NFZs, "
           f"{len(instance.feasible_arcs)} feasible arcs\n")
 
-    # ── Step 2: run GA ───────────────────────────────────────────────────
+    # ── run GA ────────────────────────────────────────────────────────────
     best_solution, ga_stats = run_ga(
         instance,
         pop_size=args.pop_size,
         generations=args.generations,
-        seed=args.seed,
-        max_payload=args.payload,
-        battery=args.battery,
-        verbose=True,
+        seed=args.seed if args.random else config.RANDOM_SEED,
+        max_payload=eff_payload,
+        battery=eff_battery,
+        verbose=False,
     )
 
-    # ── Step 3: validate ─────────────────────────────────────────────────
+    # ── validate ──────────────────────────────────────────────────────────
     report = check_solution(best_solution, instance,
-                            max_payload=args.payload, battery=args.battery)
+                            max_payload=eff_payload, battery=eff_battery)
+
+    print(f"\n{'='*60}")
+    print(f"  GA finished in {ga_stats.runtime_seconds:.2f}s over "
+          f"{ga_stats.generations} generations")
+    print(f"  Best energy : {best_solution.total_energy:.2f} energy units")
+    print(f"  Feasible    : {report.feasible}")
+    served = sum(len(r.sequence) for r in best_solution.routes)
+    print(f"  Served      : {served}/{instance.n_customers}")
+    print(f"{'='*60}")
     print(f"\n  Constraint Report:")
     print(f"    All served      : {'PASS' if report.all_served else 'FAIL'}")
     print(f"    Payload feasible: {'PASS' if report.payload_feasible else 'FAIL'}")
@@ -93,11 +173,11 @@ def main(argv: list[str] | None = None) -> None:
         for v in report.violations:
             print(f"    !! {v}")
 
-    # ── Step 4: export JSON ──────────────────────────────────────────────
+    # ── export ────────────────────────────────────────────────────────────
     export_solution_json(instance, best_solution, ga_stats, output_path=args.output)
     print(f"\n  Solution exported to: {args.output}")
 
-    # ── Route summary ────────────────────────────────────────────────────
+    # ── route summary ─────────────────────────────────────────────────────
     print(f"\n{'='*60}")
     print("  ROUTE SUMMARY")
     print(f"{'='*60}")
@@ -106,8 +186,8 @@ def main(argv: list[str] | None = None) -> None:
             continue
         seq_str = " -> ".join(["0"] + [str(c) for c in route.sequence] + ["0"])
         print(f"  Drone {route.drone_id}: {seq_str}")
-        print(f"    Energy: {route.total_energy:.2f} Wh | "
-              f"Load: {route.total_load:.2f} kg | "
+        print(f"    Energy: {route.total_energy:.2f} | "
+              f"Load: {route.total_load:.2f} | "
               f"Dist: {route.total_distance:.1f} m | "
               f"Stops: {len(route.sequence)}")
     print(f"{'='*60}\n")

@@ -42,28 +42,48 @@ class OptimizationHandler(http.server.SimpleHTTPRequestHandler):
             except json.JSONDecodeError:
                 params = {}
 
+
+            mode        = params.get("mode", "real")          # 'real' or 'random'
             customers   = params.get("customers", 20)
             drones      = params.get("drones", 4)
             battery     = params.get("battery", 150)
-            payload     = params.get("payload", 5.0)
+            payload     = params.get("payload", 5)
             seed        = params.get("seed", 42)
-            generations = params.get("generations", 50)
+            generations = params.get("generations", 80)
 
             output_file = SCRIPT_DIR / "solution.json"
 
-            cmd = [
-                sys.executable, "-m", "drone_delivery.main",
-                "--customers",   str(customers),
-                "--drones",      str(drones),
-                "--battery",     str(battery),
-                "--payload",     str(payload),
-                "--seed",        str(seed),
-                "--generations", str(generations),
-                "--pop-size",    "50",
-                "--output",      str(output_file),
-            ]
+            if mode == "random":
+                # Random synthetic instance — all slider values used directly
+                cmd = [
+                    sys.executable, "-m", "drone_delivery.main",
+                    "--random",
+                    "--customers",   str(customers),
+                    "--drones",      str(drones),
+                    "--battery",     str(battery),
+                    "--payload",     str(payload),
+                    "--seed",        str(seed),
+                    "--generations", str(generations),
+                    "--pop-size",    "60",
+                    "--output",      str(output_file),
+                ]
+                print(f"[API] RANDOM mode | customers={customers} drones={drones} seed={seed}")
+            else:
+                # Real dataset — sliders override fleet config
+                data_dir = PROJECT_ROOT / "data pre processing"
+                cmd = [
+                    sys.executable, "-m", "drone_delivery.main",
+                    "--data-dir",       str(data_dir),
+                    "--max-customers",  str(customers),
+                    "--drones",         str(drones),
+                    "--battery",        str(battery),
+                    "--payload",        str(payload),
+                    "--generations",    str(generations),
+                    "--pop-size",       "60",
+                    "--output",         str(output_file),
+                ]
+                print(f"[API] REAL mode | customers={customers} drones={drones} battery={battery} payload={payload}")
 
-            print(f"[API] Running: {' '.join(cmd[:6])} ...")
 
             try:
                 result = subprocess.run(

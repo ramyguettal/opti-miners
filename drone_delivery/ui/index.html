@@ -62,6 +62,13 @@ input[type=range].sp{width:80px;accent-color:#00d4aa}
 .spin{width:32px;height:32px;border:2px solid #1e2a45;border-top-color:#00d4aa;border-radius:50%;animation:sp .8s linear infinite}
 @keyframes sp{to{transform:rotate(360deg)}}
 .ov-txt{color:#64748b;font-size:11px;margin-top:12px;font-family:'Orbitron',monospace;letter-spacing:1px}
+.mode-toggle{display:flex;gap:0;margin-bottom:12px;border:1px solid #1e2a45;border-radius:4px;overflow:hidden}
+.mode-toggle button{flex:1;padding:6px 4px;border:none;background:#111827;color:#64748b;font-family:'Orbitron',monospace;font-size:9px;letter-spacing:1px;cursor:pointer;transition:all .2s}
+.mode-toggle button.active{background:#00d4aa;color:#0a0e1a}
+.mode-toggle button:hover:not(.active){background:#1e2a45;color:#e2e8f0}
+.viol{background:#1a1020;border:1px solid #ef444444;border-radius:4px;padding:6px 8px;margin-top:6px;font-size:10px;color:#f59e0b;line-height:1.6}
+.viol-tag{display:inline-block;background:#ef444422;color:#ef4444;padding:1px 5px;border-radius:2px;font-size:9px;font-family:'Orbitron',monospace;letter-spacing:1px;margin-right:4px}
+.viol-msg{color:#e2e8f0}
 </style>
 </head>
 <body>
@@ -72,11 +79,16 @@ input[type=range].sp{width:80px;accent-color:#00d4aa}
 <span class="badge" id="status">READY</span>
 </div>
 <div class="lp">
+<div class="st">Data Source</div>
+<div class="mode-toggle">
+<button id="mode-real" class="active" onclick="setMode('real')">Real Dataset</button>
+<button id="mode-random" onclick="setMode('random')">Random</button>
+</div>
 <div class="st">Instance Config</div>
-<div class="pr"><div class="pl">Customers <span class="pv" id="ncv">20</span></div><input type="range" min="8" max="40" value="20" id="nc" oninput="document.getElementById('ncv').textContent=this.value"></div>
-<div class="pr"><div class="pl">Drones <span class="pv" id="ndv">4</span></div><input type="range" min="2" max="6" value="4" id="nd" oninput="document.getElementById('ndv').textContent=this.value"></div>
-<div class="pr"><div class="pl">Battery (Wh) <span class="pv" id="bv">150</span></div><input type="range" min="60" max="300" value="150" step="10" id="bt" oninput="document.getElementById('bv').textContent=this.value"></div>
-<div class="pr"><div class="pl">Payload (kg) <span class="pv" id="plv">5.0</span></div><input type="range" min="2" max="10" value="5" step="0.5" id="plr" oninput="document.getElementById('plv').textContent=parseFloat(this.value).toFixed(1)"></div>
+<div class="pr"><div class="pl">Customers <span class="pv" id="ncv">20</span></div><input type="range" min="5" max="50" value="20" id="nc" oninput="document.getElementById('ncv').textContent=this.value"></div>
+<div class="pr"><div class="pl">Drones <span class="pv" id="ndv">4</span></div><input type="range" min="2" max="30" value="4" id="nd" oninput="document.getElementById('ndv').textContent=this.value"></div>
+<div class="pr"><div class="pl">Battery <span class="pv" id="bv">150</span></div><input type="range" min="50" max="3000" value="150" step="10" id="bt" oninput="document.getElementById('bv').textContent=this.value"></div>
+<div class="pr"><div class="pl">Payload <span class="pv" id="plv">5</span></div><input type="range" min="2" max="500" value="5" step="1" id="plr" oninput="document.getElementById('plv').textContent=this.value"></div>
 <div class="pr"><div class="pl">Seed <span class="pv" id="sdv">42</span></div><input type="range" min="1" max="999" value="42" id="sd" oninput="document.getElementById('sdv').textContent=this.value"></div>
 <button class="btn pri" id="run-btn" onclick="runOptimization()">Run Optimization</button>
 <div class="st" style="margin-top:14px">Solution Stats</div>
@@ -125,8 +137,18 @@ input[type=range].sp{width:80px;accent-color:#00d4aa}
 <script>
 const COLORS=['#00d4aa','#f59e0b','#ef4444','#a78bfa','#3b82f6','#f97316'];
 let data=null,chart=null,animT=0,playing=false,raf=null,lastTs=0;
+let currentMode='real';  // 'real' or 'random'
 
 function E(id){return document.getElementById(id);}
+
+/* ── Mode toggle ────────────────────────────────────────────────── */
+function setMode(mode){
+  currentMode=mode;
+  E('mode-real').classList.toggle('active', mode==='real');
+  E('mode-random').classList.toggle('active', mode==='random');
+  // Show/hide seed slider (only relevant for random mode)
+  E('sd').parentElement.style.display = mode==='random' ? '' : 'none';
+}
 
 /* ── Run Optimization (calls the Python backend API) ────────────── */
 async function runOptimization(){
@@ -136,6 +158,7 @@ async function runOptimization(){
   E('run-btn').disabled=true;
 
   const params={
+    mode:      currentMode,
     customers: +E('nc').value,
     drones:    +E('nd').value,
     battery:   +E('bt').value,
@@ -312,27 +335,51 @@ function drawConv(curve){
   });
 }
 
-/* ── Constraint status panel ────────────────────────────────────── */
+/* ── Constraint status panel (uses backend report) ─────────────── */
 function updateConstraints(){
-  if(!data){E('cpanel').innerHTML='';return;}
-  const sol=data.solution,inst=data.instance;
-  const bat=data.optimization.parameters.battery_wh||150;
-  const pay=data.optimization.parameters.max_payload_kg||5;
-  const servedSet=new Set();
-  sol.routes.forEach(r=>r.sequence.forEach(c=>servedSet.add(c)));
-  const allServed=servedSet.size>=inst.customers.length;
-  let payOk=true,enOk=true;
-  sol.routes.forEach(r=>{if(r.load_kg>pay+0.01)payOk=false;if(r.energy_wh>bat+0.01)enOk=false;});
-  const checks=[
-    [allServed,'All customers served'],
-    [payOk,'Payload feasible'],
-    [enOk,'Energy feasible'],
-    [true,'No NFZ violations'],
-    [sol.collisions.length===0,'No collisions']
-  ];
-  E('cpanel').innerHTML=checks.map(([ok,lbl])=>
-    `<div class="cr"><span class="ci" style="color:${ok?'#00d4aa':'#f59e0b'}">${ok?'✓':'⚠'}</span><span style="color:#94a3b8">${lbl}</span></div>`
-  ).join('');
+  const panel=E('cpanel');
+  if(!data){panel.innerHTML='';return;}
+
+  // Prefer the detailed backend report if present
+  const cr=data.constraints;
+  if(cr && cr.checks){
+    let html=cr.checks.map(c=>
+      `<div class="cr"><span class="ci" style="color:${c.passed?'#00d4aa':'#f59e0b'}">${c.passed?'✓':'⚠'}</span><span style="color:#94a3b8">${c.name}</span></div>`
+    ).join('');
+
+    // Show detailed violation explanations
+    if(cr.violations && cr.violations.length>0){
+      html+='<div class="viol">';
+      cr.violations.forEach(v=>{
+        const match=v.match(/^(C\d+):/);
+        const tag=match?match[1]:'WARN';
+        const msg=match?v.slice(match[0].length).trim():v;
+        html+=`<div style="margin-bottom:4px"><span class="viol-tag">${tag}</span><span class="viol-msg">${msg}</span></div>`;
+      });
+      html+='</div>';
+    }
+    panel.innerHTML=html;
+  } else {
+    // Fallback: compute from solution data (for old cached files)
+    const sol=data.solution,inst=data.instance;
+    const bat=data.optimization.parameters.battery_wh||150;
+    const pay=data.optimization.parameters.max_payload_kg||5;
+    const servedSet=new Set();
+    sol.routes.forEach(r=>r.sequence.forEach(c=>servedSet.add(c)));
+    const allServed=servedSet.size>=inst.customers.length;
+    let payOk=true,enOk=true;
+    sol.routes.forEach(r=>{if(r.load_kg>pay+0.01)payOk=false;if(r.energy_wh>bat+0.01)enOk=false;});
+    const checks=[
+      [allServed,'All customers served'],
+      [payOk,'Payload feasible'],
+      [enOk,'Energy feasible'],
+      [true,'No NFZ violations'],
+      [sol.collisions.length===0,'No collisions']
+    ];
+    panel.innerHTML=checks.map(([ok,lbl])=>
+      `<div class="cr"><span class="ci" style="color:${ok?'#00d4aa':'#f59e0b'}">${ok?'✓':'⚠'}</span><span style="color:#94a3b8">${lbl}</span></div>`
+    ).join('');
+  }
 }
 
 /* ── Animation ──────────────────────────────────────────────────── */
@@ -360,8 +407,9 @@ function resetAnim(){
 }
 function stepAnim(){if(!data)return;animT+=0.8;E('tdisp').textContent=animT.toFixed(1);drawMap();}
 
-/* ── On page load: try to load cached solution, otherwise wait for button ── */
+/* ── On page load ────────────────────────────────────────────────── */
 window.addEventListener('load', async ()=>{
+  setMode('real'); // hide seed slider initially
   try{
     const r=await fetch('solution.json');
     if(r.ok){
